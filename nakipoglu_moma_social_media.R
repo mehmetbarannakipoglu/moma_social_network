@@ -2,6 +2,7 @@
 library(tidyverse)  # For data manipulation
 library(igraph)     # For graph creation
 
+
 # Step 1: Load Dataset
 moma_data <- read.csv("/Users/mehmetbarannakipoglu/Downloads/social-media-project/exhibitions-master/MoMAExhibitions1929to1989.csv", stringsAsFactors = FALSE)
 
@@ -305,3 +306,81 @@ print(nationality_metrics)
 
 # Save Node Metrics by Nationality to CSV
 write.csv(nationality_metrics, "Node_Metrics_by_Nationality.csv", row.names = FALSE)
+
+# Step 9: Create Scatter Plot with Clusters
+
+# Add Cluster Membership to Node Metrics
+all_node_metrics$Cluster <- membership(gender_enhanced_communities)
+
+# Calculate Topological Coefficient (optional, based on clustering coefficients)
+all_node_metrics$TopologicalCoefficient <- transitivity(gender_enhanced_graph, type = "local")
+
+# Add Gender and Nationality Information
+plot_data <- all_node_metrics %>%
+  filter(type == FALSE) %>%  # Exclude exhibition nodes
+  select(name, closeness, TopologicalCoefficient, Cluster) %>%
+  inner_join(participant_nodes %>% select(DisplayName, Gender, Nationality), by = c("name" = "DisplayName"))
+
+# Replace NA values in Topological Coefficient
+plot_data$TopologicalCoefficient[is.na(plot_data$TopologicalCoefficient)] <- 0
+
+# Clean Gender Data
+plot_data <- plot_data %>%
+  filter(Gender %in% c("Male", "Female"))  # Keep only valid gender values
+
+# Gender Distribution by Cluster
+gender_by_cluster <- plot_data %>%
+  group_by(Cluster, Gender) %>%
+  summarise(Count = n()) %>%
+  mutate(Percentage = round(Count / sum(Count) * 100, 2))
+
+print(gender_by_cluster)
+
+# Nationality Distribution by Cluster
+nationality_by_cluster <- plot_data %>%
+  group_by(Cluster, Nationality) %>%
+  summarise(Count = n()) %>%
+  mutate(Percentage = round(Count / sum(Count) * 100, 2))
+
+print(nationality_by_cluster)
+
+library(ggplot2)
+
+# Scatter Plot with Clusters and Gender
+ggplot(plot_data, aes(x = closeness, y = TopologicalCoefficient, color = Gender, shape = as.factor(Cluster))) +
+  geom_point(size = 3) +
+  theme_minimal() +
+  labs(
+    title = "Scatter Plot of Nodes Colored by Clusters (Gender)",
+    x = "Closeness Centrality",
+    y = "Topological Coefficient",
+    color = "Gender",
+    shape = "Cluster"
+  ) +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5)
+  )
+
+# Save Gender Scatter Plot
+ggsave("Scatter_Plot_Clusters_Gender.pdf", width = 10, height = 8)
+
+# Scatter Plot with Clusters and Nationality
+ggplot(plot_data, aes(x = closeness, y = TopologicalCoefficient, color = Nationality, shape = as.factor(Cluster))) +
+  geom_point(size = 3) +
+  theme_minimal() +
+  labs(
+    title = "Scatter Plot of Nodes Colored by Clusters (Nationality)",
+    x = "Closeness Centrality",
+    y = "Topological Coefficient",
+    color = "Nationality",
+    shape = "Cluster"
+  ) +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5)
+  )
+
+# Save Nationality Scatter Plot
+ggsave("Scatter_Plot_Clusters_Nationality.pdf", width = 10, height = 8)
+
